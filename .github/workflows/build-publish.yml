@@ -19,6 +19,7 @@ jobs:
         id: get-version
         run: |
           pattern="^refs\/tags\/v([0-9]+\.[0-9]+\.[0-9]+(-(a|alpha|b|beta|dev)[0-9]+)?)$"
+          echo "${{ github.ref }}"
           if [[ "${{ github.ref }}" =~ $pattern ]]
           then
             ver="${BASH_REMATCH[1]}"
@@ -27,6 +28,8 @@ jobs:
             ver="0.0.1-dev0"
             pub="false"
           fi
+          echo "$ver"
+          echo "$pub"
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           echo "publish=$pub" >> "$GITHUB_OUTPUT"
 
