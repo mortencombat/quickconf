@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "setuptools_scm[toml]>=7.1.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "quickconf"
+authors = [{name="Kenneth Trelborg Vestergaard", email="mortencombat@fastmail.com"}]
+description = "Simple and flexible TOML-file based configurations framework"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["configuration", "settings", "options", "toml"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "attrs",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+build = [ 'setuptools', 'build', 'wheel', 'twine' ]
+test = [ 'pytest' ]
+
+[tool.setuptools.dynamic]
+version = {file = [".version"]}
+
+[project.urls]
+homepage = "https://github.com/mortencombat/quickconf"
+repository = "https://github.com/mortencombat/quickconf"
