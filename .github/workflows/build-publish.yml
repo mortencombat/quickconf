@@ -51,9 +51,9 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          Write-Host "$VERSION"
-          "$VERSION" | Out-File -FilePath ".version"
-          "__version__ = version = '$VERSION'" | Out-File -FilePath "src/quickconf/_version.py"
+          Write-Host "$env:VERSION"
+          "$env:VERSION" | Out-File -FilePath ".version"
+          "__version__ = version = '$env:VERSION'" | Out-File -FilePath "src/quickconf/_version.py"
         shell: pwsh
       - name: Build package
         run: |
