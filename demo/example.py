@@ -1,22 +1,29 @@
 from pathlib import Path
 
-from quickconf import Configuration, Option, Options
+from quickconf import Configuration, Setting, Settings
 
-options = Options(
+"""
+This example demonstrates the three basic ways quickconf can be used, in terms of loading and accessing settings.
+The access methods can also be used concurrently, which is the default allowed behaviour.
+
+Each of the three examples demonstrates both the different settings access methods as well as the available settings.
+"""
+
+settings = Settings(
     (
-        Option[int]("layout.resolution", default=100),
-        Option[float]("layout.point.size", default=0.1),
-        Option[int]("page.dpi", default=150),
-        Option[int]("page.margins", default=10),
+        Setting[int]("layout.resolution", default=100),
+        Setting[float]("layout.point.size", default=0.1),
+        Setting[int]("page.dpi", default=150),
+        Setting[int]("page.margins", default=10),
     )
 )
 
 
 class ExampleConfig(Configuration):
-    layout_resolution: int = options["layout.resolution"]
-    layout_point_size: float = options["layout.point.size"]
-    page_dpi: int = options["page.dpi"]
-    page_margins: int = options["page.margins"]
+    layout_resolution: int = settings["layout.resolution"]
+    layout_point_size: float = settings["layout.point.size"]
+    page_dpi: int = settings["page.dpi"]
+    page_margins: int = settings["page.margins"]
 
 
 data = Path("demo/settings.toml")
@@ -25,16 +32,28 @@ data = Path("demo/settings.toml")
 # The settings are available as attributes (properties), includes autocomplete and typing.
 # Settings are only available as the explicitly defined class attributes of ExampleConfig,
 # fx. conf_subcl.layout_point_size
-conf_subcl = ExampleConfig(
-    data, defined_only=True, access=Configuration.OptionAccess.ATTRIBUTE_EXPLICIT
+print("\nEXAMPLE 1: subclassed Configuration with explicit attributes")
+config = ExampleConfig(
+    data, defined_only=True, access=Configuration.SettingsAccess.ATTR_EXPLICIT
 )
+print(f"{config.layout_point_size=}")
+for setting, value in config.settings.items():
+    print(f"{setting} = {value}")
 
 # Settings are inferred from the configuration file, eg. all settings from the file are read.
 # Settings are only available using eg. conf_impl.layout.point.size
-conf_impl = Configuration(data, access=Configuration.OptionAccess.ATTRIBUTE)
+print("\nEXAMPLE 2: Configuration with all settings in .toml file and attribute access")
+config = Configuration(data, access=Configuration.SettingsAccess.ATTR)
+print(f"{config.layout.point.size=}")
+for setting, value in config.settings.items():
+    print(f"{setting} = {value}")
 
 # Settings are defined in options. Any settings in data that are not explicitly defined are
 # ignored. Settings are only available using eg. conf_expl["layout.point.size"]
-conf_expl = Configuration(
-    data, options=options, defined_only=True, access=Configuration.OptionAccess.INDEX
+print("\nEXAMPLE 3: Configuration with only defined settings and item access [...]")
+config = Configuration(
+    data, settings=settings, defined_only=True, access=Configuration.SettingsAccess.ITEM
 )
+print(f"{config['layout.point.size']=}")
+for setting, value in config.settings.items():
+    print(f"{setting} = {value}")

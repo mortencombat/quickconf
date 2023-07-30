@@ -1,1 +1,1 @@
-from .core import Configuration, Option, Options
+from .core import Configuration, Setting, Settings
