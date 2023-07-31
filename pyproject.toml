@@ -20,8 +20,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "attrs",
-    "tomli>=2.0; python_version<3.11",
+    'attrs',
+    'tomli>=2.0;python_version<"3.11"',
 ]
 dynamic = ["version"]
 
