@@ -31,7 +31,7 @@ data = Path("demo/settings.toml")
 # Settings are defined explicitly by subclassing Configuration.
 # The settings are available as attributes (properties), includes autocomplete and typing.
 # Settings are only available as the explicitly defined class attributes of ExampleConfig,
-# fx. conf_subcl.layout_point_size
+# fx. config.layout_point_size
 print("\nEXAMPLE 1: subclassed Configuration with explicit attributes")
 config = ExampleConfig(
     data, defined_only=True, access=Configuration.SettingsAccess.ATTR_EXPLICIT
@@ -41,7 +41,7 @@ for setting, value in config.settings.items():
     print(f"{setting} = {value}")
 
 # Settings are inferred from the configuration file, eg. all settings from the file are read.
-# Settings are only available using eg. conf_impl.layout.point.size
+# Settings are only available using eg. config.layout.point.size
 print("\nEXAMPLE 2: Configuration with all settings in .toml file and attribute access")
 config = Configuration(data, access=Configuration.SettingsAccess.ATTR)
 print(f"{config.layout.point.size=}")
@@ -49,7 +49,7 @@ for setting, value in config.settings.items():
     print(f"{setting} = {value}")
 
 # Settings are defined in options. Any settings in data that are not explicitly defined are
-# ignored. Settings are only available using eg. conf_expl["layout.point.size"]
+# ignored. Settings are only available using eg. config["layout.point.size"]
 print("\nEXAMPLE 3: Configuration with only defined settings and item access [...]")
 config = Configuration(
     data, settings=settings, defined_only=True, access=Configuration.SettingsAccess.ITEM
