@@ -1,9 +1,10 @@
 import re
+from collections.abc import Iterable
 from enum import Flag, auto
 from inspect import getmembers
 from itertools import chain
 from pathlib import Path
-from typing import Any, Generic, Iterable, TypeVar
+from typing import Any, Generic, TypeVar
 
 try:
     import tomlkit as tomllib
@@ -99,7 +100,7 @@ class Settings:
             self.extend(settings)
 
     def append(self, setting: Setting) -> bool:
-        if not setting.name in self._settings:
+        if setting.name not in self._settings:
             self._settings[setting.name] = setting
             return True
         else:
@@ -113,13 +114,13 @@ class Settings:
         return n
 
     def clear(self) -> None:
-        self._settings = dict()
+        self._settings = {}
 
     def __contains__(self, name: str) -> bool:
         return name in self._settings
 
     def __getitem__(self, name: str) -> Setting:
-        if not name in self._settings:
+        if name not in self._settings:
             raise KeyError(name)
         return self._settings[name]
 
@@ -204,10 +205,10 @@ class Configuration:
 
     def _has_section(self, section: str) -> bool:
         s = section + "."
-        for setting in chain(self._settings, self._settings_flex):
-            if setting.name.startswith(s):
-                return True
-        return False
+        return any(
+            setting.name.startswith(s)
+            for setting in chain(self._settings, self._settings_flex)
+        )
 
     def _load_toml(self, config: Path | str) -> None:
         """Load configuration settings from a path pointing to a toml-file or
@@ -221,7 +222,7 @@ class Configuration:
 
     @staticmethod
     def _get_settings_from_dict(data: dict, section: str = None) -> dict:
-        r = dict()
+        r = {}
         for name, value in data.items():
             s = f"{section}.{name}" if section else name
             if isinstance(value, dict):
@@ -238,12 +239,12 @@ class Configuration:
             # Add settings to self._settings_flex for each item in self._data,
             # unless it is already defined in self._settings
             for setting, value in self._get_settings_from_dict(config).items():
-                if not setting in self._settings:
+                if setting not in self._settings:
                     self._settings_flex.append(Setting[type(value)](setting))
 
     @property
     def settings(self) -> dict[str, Any]:
-        r = dict()
+        r = {}
         for s in chain(self._settings, self._settings_flex):
             r[s.name] = s.__get__(self)
         return dict(sorted(r.items()))
@@ -252,7 +253,7 @@ class Configuration:
         try:
             return self.__get_value(self._data, keys, 0)
         except KeyError as e:
-            if not default is None:
+            if default is not None:
                 return default
             raise e
 
@@ -267,7 +268,7 @@ class Configuration:
         )
 
     def __getattr__(self, name: str) -> Any:
-        if not Configuration.SettingsAccess.ATTR in self._access:
+        if Configuration.SettingsAccess.ATTR not in self._access:
             raise AttributeError(name)
         if name in self._settings:
             return self._settings[name]
@@ -278,8 +279,8 @@ class Configuration:
 
     def __getitem__(self, name: str) -> Any:
         if (
-            not Configuration.SettingsAccess.ITEM in self._access
-            or not name in self._settings
+            Configuration.SettingsAccess.ITEM not in self._access
+            or name not in self._settings
         ):
             raise KeyError(name)
         return self._settings[name].__get__(self)
