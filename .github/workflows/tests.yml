@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop/*
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  # linting:
+  #   name: Linting
+  #   runs-on: ubuntu-latest
+
+  #   # TODO: Consider how this should work,
+  #   # what happens to any fixes that pre-commit/action makes here?
+
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: 3.11
+  #     - uses: pre-commit/action@v3.0.0
+
+  tests:
+    # needs: linting
+    name: Tests (${{ matrix.os }}/${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu]
+        python-version: [3.10]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/

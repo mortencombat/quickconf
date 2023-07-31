@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Check version
+        id: check-version
+        run: |
+          [[ "${{ github.ref }}" =~ "^refs\/tags\/v([0-9]+\.[0-9]+\.[0-9]+(-(a|alpha|b|beta|dev)[0-9]+)?)$" ]]
+          echo ::set-output name=version::${BASH_REMATCH[1]}
+          [ -z "${BASH_REMATCH[2]}" ] || echo ::set-output name=prerelease::true
+
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Write version files
+        env:
+          VERSION: ${{ steps.check-version.outputs.version }}
+        run: |
+          "$env:VERSION" | Out-File -FilePath ".version"
+          "__version__ = version = '$env:VERSION'" | Out-File -FilePath "src/quickconf/_version.py"
+        shell: pwsh
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools build wheel
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "dist/*"
+          draft: false
+          allowUpdates: true
+          generateReleaseNotes: true
+          prerelease: steps.check-version.outputs.prerelease == 'true'
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
