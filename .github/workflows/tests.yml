@@ -5,42 +5,47 @@ on:
     branches:
       - main
       - develop/*
+      - feature/*
   pull_request:
     branches:
       - "**"
 
 jobs:
-  # linting:
-  #   name: Linting
-  #   runs-on: ubuntu-latest
+  linting:
+    name: Linting
+    runs-on: ubuntu-latest
 
-  #   # TODO: Consider how this should work,
-  #   # what happens to any fixes that pre-commit/action makes here?
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: actions/setup-python@v4
-  #       with:
-  #         python-version: 3.11
-  #     - uses: pre-commit/action@v3.0.0
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.x
+
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.0
 
   tests:
-    # needs: linting
+    needs: linting
     name: Tests (${{ matrix.os }}/${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}-latest
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu]
-        python-version: ["3.10"]
+        python-version: ["3.10", "3.11"]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -49,4 +54,11 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/
+          python -m pytest --doctest-modules --junit-xml=tests/.results/pytest.xml --cov=src/quickconf --cov-report=xml:tests/.coverage/cov.xml tests/
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            tests/.results/*.xml
