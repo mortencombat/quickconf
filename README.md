@@ -1,3 +1,5 @@
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/mortencombat/quickconf/main.svg)](https://results.pre-commit.ci/latest/github/mortencombat/quickconf/main)
+
 # quickconf
 
 Simple and flexible TOML-file based configurations framework

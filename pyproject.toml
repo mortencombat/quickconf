@@ -10,7 +10,7 @@ name = "quickconf"
 authors = [{name="Kenneth Trelborg Vestergaard", email="mortencombat@fastmail.com"}]
 description = "Simple and flexible TOML-file based configurations framework"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 keywords = ["configuration", "settings", "options", "toml"]
 classifiers = [
     "Development Status :: 3 - Alpha",
