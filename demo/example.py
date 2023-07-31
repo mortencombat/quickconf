@@ -27,6 +27,7 @@ class ExampleConfig(Configuration):
 
 
 data = Path("demo/settings.toml")
+data_out = Path("demo/settings_updated.toml")
 
 # Settings are defined explicitly by subclassing Configuration.
 # The settings are available as attributes (properties), includes autocomplete and typing.
@@ -39,6 +40,8 @@ config = ExampleConfig(
 print(f"{config.layout_point_size=}")
 for setting, value in config.settings.items():
     print(f"{setting} = {value}")
+config.layout_point_size = 0.2
+config.save(data_out)
 
 # Settings are inferred from the configuration file, eg. all settings from the file are read.
 # Settings are only available using eg. config.layout.point.size
@@ -47,6 +50,8 @@ config = Configuration(data, access=Configuration.SettingsAccess.ATTR)
 print(f"{config.layout.point.size=}")
 for setting, value in config.settings.items():
     print(f"{setting} = {value}")
+config.layout.point.size = 0.3
+config.save(data_out)
 
 # Settings are defined in options. Any settings in data that are not explicitly defined are
 # ignored. Settings are only available using eg. config["layout.point.size"]

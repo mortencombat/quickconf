@@ -1,0 +1,8 @@
+[layout]
+point.size = 0.1       # Point size in mm, eg. 0.1 corresponds to 1 pt = 10 mm
+# resolution = 50         # Number of layout points per base unit (mm). Only relevant for absolute measurements.
+
+[page]
+dpi = 300               # Defaults to use for pages, if not explicitly specified.
+margins = 10            # Default page margins in mm, BoxSpacingLike (one value or tuple with up to 4 values)
+paper = 'A4'

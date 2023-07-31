@@ -8,7 +8,10 @@ from typing import Any, Generic, TypeVar
 
 try:
     import tomlkit as tomllib
+
+    _SUPPORT_WRITE = True
 except ModuleNotFoundError:
+    _SUPPORT_WRITE = False
     try:
         import tomllib
     except ModuleNotFoundError:
@@ -61,21 +64,31 @@ class Setting(Generic[T]):
     def _load(self, config: "Configuration") -> None:
         """Retrieves settings value from configuration"""
 
-        v = config._get_value(self._keys, default=self._default)
+        value = config._get_value(self._keys, default=self._default)
 
         self._get_generic_type()
-        if not isinstance(v, self._type):
+        if not isinstance(value, self._type):
             raise TypeError(
-                f"{self.name} should be {self._type.__name__}, got '{v}' ({type(v).__name__})"
+                f"{self.name} should be {self._type.__name__}, got '{value}' ({type(value).__name__})"
             )
 
         # TODO: Add validation support
 
-        self._value = v
+        self._value = value
         self._loaded = True
 
-    def _dump(self, config: "Configuration") -> None:
-        raise NotImplementedError
+    def _dump(self, config: "Configuration", value: T) -> None:
+        if not self._loaded:
+            self._get_generic_type()
+
+        if not isinstance(value, self._type):
+            raise TypeError(
+                f"{self.name} should be {self._type.__name__}, got '{value}' ({type(value).__name__})"
+            )
+
+        # TODO: Check validation
+
+        config._set_value(self._keys, value)
 
     def __get__(self, instance: "Configuration", owner: "Configuration" = None) -> T:
         if not instance:
@@ -85,8 +98,9 @@ class Setting(Generic[T]):
         return self._value
 
     def __set__(self, instance: "Configuration", value: T) -> None:
-        if not instance or instance._read_only:
+        if not instance or instance.is_readonly:
             raise AttributeError(self.name)
+        self._dump(instance, value)
         self._value = value
 
     def __delete__(self, instance: "Configuration") -> None:
@@ -157,6 +171,17 @@ class Configuration:
 
             return Configuration._Proxy(self._config, setting)
 
+        # def __setattr__(self, key: str, value: str):
+        #     setting = f"{self._name}.{key}"
+        #     if setting in self._config._settings:
+        #         return self._config.settings[setting].__set__(self._config, value)
+        #     elif (
+        #         not self._config._defined_only
+        #         and setting in self._config._settings_flex
+        #     ):
+        #         return self._config._settings_flex[setting].__set__(self._config, value)
+        #     raise AttributeError(setting)
+
     def __init__(
         self,
         config: Path | str | dict = None,
@@ -164,6 +189,7 @@ class Configuration:
         settings: Settings | Iterable[Setting] = None,
         defined_only: bool = False,
         access: SettingsAccess = SettingsAccess.ANY,
+        allow_changes: bool = True,
     ) -> None:
         """Returns a Configuration instance.
 
@@ -178,7 +204,7 @@ class Configuration:
         # Misc. config
         self._defined_only = defined_only
         self._access = access
-        self._read_only = True  # Only read-only supported at the moment
+        self._allow_changes = allow_changes
 
         # Assemble options from arg and class attributes.
         self._settings = Settings(settings)
@@ -196,6 +222,7 @@ class Configuration:
         for setting in self._settings:
             del setting
         self._settings_flex.clear()
+        self._data = {}
 
     def load(self, config: Path | str | dict = None) -> None:
         self.reset()
@@ -205,6 +232,12 @@ class Configuration:
             self._load_dict(config)
         else:
             self._load_toml(config)
+
+    def save(self, path: Path | str) -> None:
+        if self.is_readonly:
+            raise OSError("Configuration is read-only")
+        with open(path, "w") as f:
+            f.write(tomllib.dumps(self._data))
 
     def _has_section(self, section: str) -> bool:
         s = section + "."
@@ -246,6 +279,10 @@ class Configuration:
                     self._settings_flex.append(Setting[type(value)](setting))
 
     @property
+    def is_readonly(self) -> bool:
+        return not _SUPPORT_WRITE or not self._allow_changes
+
+    @property
     def settings(self) -> dict[str, Any]:
         r = {}
         for s in chain(self._settings, self._settings_flex):
@@ -270,20 +307,60 @@ class Configuration:
             else data[keys[level]]
         )
 
-    def __getattr__(self, name: str) -> Any:
-        if Configuration.SettingsAccess.ATTR not in self._access:
-            raise AttributeError(name)
-        if name in self._settings:
-            return self._settings[name]
-        if not self._has_section(name):
-            raise AttributeError(name)
+    def _set_value(self, keys: tuple[str], value: T) -> None:
+        Configuration.__set_value(self._data, keys, value)
 
-        return Configuration._Proxy(self, name)
+    @staticmethod
+    def __set_value(
+        container: tomllib.container.Container, keys: tuple[str], value: T
+    ) -> None:
+        n = len(keys)
+        container.update()
+        if keys[0] not in container:
+            if n == 1:
+                container.add(keys[0], value)
+            else:
+                t = tomllib.table()
+                t.add(keys[-1], value)
+                container.add(".".join(keys[:-1]), t)
+                container.add(tomllib.nl())
+        else:
+            if n == 1:
+                container[keys[0]] = value
+            else:
+                Configuration.__set_value(container[keys[0]], keys[1:], value)
+
+    def __getattr__(self, name: str) -> Any:
+        print("__getattr__", name)
+        if Configuration.SettingsAccess.ATTR in self._access:
+            if name in self._settings:
+                return self._settings[name]
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name]
+            elif self._has_section(name):
+                return Configuration._Proxy(self, name)
+        raise AttributeError(name)
+
+    # def __setattr__(self, name: str, value: Any) -> None:
+    #     if Configuration.SettingsAccess.ATTR in self._access:
+    #         if name in self._settings:
+    #             self._settings[name] = value
+    #         elif not self._defined_only and name in self._settings_flex:
+    #             self._settings_flex[name] = value
+    #     return super().__setattr__(name, value)
 
     def __getitem__(self, name: str) -> Any:
-        if (
-            Configuration.SettingsAccess.ITEM not in self._access
-            or name not in self._settings
-        ):
-            raise KeyError(name)
-        return self._settings[name].__get__(self)
+        if Configuration.SettingsAccess.ITEM in self._access:
+            if name in self._settings:
+                return self._settings[name].__get__(self)
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name].__get__(self)
+        raise KeyError(name)
+
+    def __setitem__(self, name: str, value: Any) -> None:
+        if Configuration.SettingsAccess.ITEM in self._access:
+            if name in self._settings:
+                return self._settings[name].__set__(self, value)
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name].__set__(self, value)
+        raise KeyError(name)
