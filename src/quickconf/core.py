@@ -9,7 +9,10 @@ from typing import Any, Generic, TypeVar
 try:
     import tomlkit as tomllib
 except ModuleNotFoundError:
-    import tomllib
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib
 
 T = TypeVar("T")
 

@@ -10,7 +10,7 @@ name = "quickconf"
 authors = [{name="Kenneth Trelborg Vestergaard", email="mortencombat@fastmail.com"}]
 description = "Simple and flexible TOML-file based configurations framework"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["configuration", "settings", "options", "toml"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,6 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "attrs",
+    "tomli>=2.0; python_version<3.11",
 ]
 dynamic = ["version"]
 

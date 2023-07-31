@@ -31,6 +31,9 @@ jobs:
     needs: linting
     name: Tests (${{ matrix.os }}/${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}-latest
+    permissions:
+      checks: write
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
