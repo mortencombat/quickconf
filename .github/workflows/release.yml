@@ -31,9 +31,9 @@ jobs:
               version="${version/-/}"
               version="${version/alpha/a}"
               version="${version/beta/b}"
-              echo ::set-output name=prerelease::true
+              echo "prelease=true" >> $GITHUB_STATE
           fi
-          echo ::set-output name=version::$version
+          echo "version=$version" >> $GITHUB_STATE
 
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -74,7 +74,7 @@ jobs:
           allowUpdates: true
           generateReleaseNotes: true
           replacesArtifacts: true
-          prerelease: ${{ steps.check-version.outputs.prerelease }} == 'true'
+          prerelease: steps.check-version.outputs.prerelease == 'true'
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
