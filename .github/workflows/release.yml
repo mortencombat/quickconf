@@ -73,7 +73,8 @@ jobs:
           draft: false
           allowUpdates: true
           generateReleaseNotes: true
-          prerelease: steps.check-version.outputs.prerelease == 'true'
+          replacesArtifacts: true
+          prerelease: ${{ steps.check-version.outputs.prerelease }} == 'true'
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
