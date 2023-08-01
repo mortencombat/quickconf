@@ -22,15 +22,30 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.x
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "requirements-dev.txt"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Apply pre-commit cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pre-commit/
+          key: pre-commit-4|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.0
+        run: pre-commit run --show-diff-on-failure --color=always --all-files
+        # uses: pre-commit/action@v3.0.0
 
   tests:
     needs: linting
     name: Tests (${{ matrix.os }}/${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}-latest
+    permissions:
+      checks: write
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -62,3 +77,5 @@ jobs:
         with:
           files: |
             tests/.results/*.xml
+          check_name: Test results (${{ matrix.os }}/${{ matrix.python-version }})
+          job_summary: false

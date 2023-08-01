@@ -1,18 +1,59 @@
 import re
+from collections.abc import Iterable
+from datetime import date, datetime, time
 from enum import Flag, auto
 from inspect import getmembers
 from itertools import chain
 from pathlib import Path
-from typing import Any, Generic, Iterable, TypeVar
+from typing import Any, Generic, TypeVar
 
 try:
     import tomlkit as tomllib
+
+    _USE_TOMLKIT = True
 except ModuleNotFoundError:
-    import tomllib
+    _USE_TOMLKIT = False
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib
 
 T = TypeVar("T")
 
 _key_pattern = re.compile("[A-Za-z0-9_-]+")
+
+_FIXED_ATTR = (
+    "_defined_only",
+    "_access",
+    "_allow_changes",
+    "_settings",
+    "_settings_flex",
+    "_data",
+)
+
+# RESERVED_CONFIG = (
+#     "__defined_only",
+#     "__access",
+#     "__allow_changes",
+#     "__settings",
+#     "__settings_flex",
+#     "__data",
+#     "__TYPE_MAP",
+#     "load",
+#     "reset",
+#     "save",
+#     "__has_section",
+#     "__load_toml",
+#     "__load_dict",
+#     "__get_settings_from_dict",
+#     "",
+#     "",
+#     "",
+# )
+# RESERVED_PROXY = (
+#     "__name",
+#     "__config",
+# )
 
 
 def parse_key(key: str) -> tuple[str]:
@@ -29,7 +70,13 @@ class Setting(Generic[T]):
     # NOTE: This is a 'descriptor class', similar to using property()
     # https://docs.python.org/3/reference/datamodel.html?highlight=__get__#implementing-descriptors
 
-    def __init__(self, name: str, *, default: T = None, doc: str = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        default: T = None,
+        doc: str = None,
+    ) -> None:
         super().__init__()
 
         self._name = name.replace(" ", "")
@@ -39,9 +86,7 @@ class Setting(Generic[T]):
         self.__doc__ = doc
         self._reset()
 
-    # TODO: implement name validator, does tomllib have a method we can use?
-
-    # Add support for validators, and a couple of stock validators
+    # TODO: Add support for validators, and a couple of stock validators
 
     @property
     def name(self) -> str:
@@ -57,21 +102,31 @@ class Setting(Generic[T]):
     def _load(self, config: "Configuration") -> None:
         """Retrieves settings value from configuration"""
 
-        v = config._get_value(self._keys, default=self._default)
+        value = config._get_value(self._keys, default=self._default)
 
         self._get_generic_type()
-        if not isinstance(v, self._type):
+        if not isinstance(value, self._type):
             raise TypeError(
-                f"{self.name} should be {self._type.__name__}, got '{v}' ({type(v).__name__})"
+                f"{self.name} should be {self._type.__name__}, got '{value}' ({type(value).__name__})"
             )
 
         # TODO: Add validation support
 
-        self._value = v
+        self._value = value
         self._loaded = True
 
-    def _dump(self, config: "Configuration") -> None:
-        raise NotImplementedError
+    def _dump(self, config: "Configuration", value: T) -> None:
+        if not self._loaded:
+            self._get_generic_type()
+
+        if not isinstance(value, self._type):
+            raise TypeError(
+                f"{self.name} should be {self._type.__name__}, got '{value}' ({type(value).__name__})"
+            )
+
+        # TODO: Check validation
+
+        config._set_value(self._keys, value)
 
     def __get__(self, instance: "Configuration", owner: "Configuration" = None) -> T:
         if not instance:
@@ -81,8 +136,9 @@ class Setting(Generic[T]):
         return self._value
 
     def __set__(self, instance: "Configuration", value: T) -> None:
-        if not instance or instance._read_only:
+        if not instance or instance.is_readonly:
             raise AttributeError(self.name)
+        self._dump(instance, value)
         self._value = value
 
     def __delete__(self, instance: "Configuration") -> None:
@@ -99,7 +155,7 @@ class Settings:
             self.extend(settings)
 
     def append(self, setting: Setting) -> bool:
-        if not setting.name in self._settings:
+        if setting.name not in self._settings:
             self._settings[setting.name] = setting
             return True
         else:
@@ -113,13 +169,13 @@ class Settings:
         return n
 
     def clear(self) -> None:
-        self._settings = dict()
+        self._settings = {}
 
     def __contains__(self, name: str) -> bool:
         return name in self._settings
 
     def __getitem__(self, name: str) -> Setting:
-        if not name in self._settings:
+        if name not in self._settings:
             raise KeyError(name)
         return self._settings[name]
 
@@ -139,7 +195,14 @@ class Configuration:
             self._config = config
             self._name = name
 
+        # NOTE! There could be name clashes with the current implementation, both in Configuration and in _Proxy,
+        #       if a settings key has the same name as a class attribute
+        #       Raise an error if ATTR access is enabled and a setting is defined or loaded that clashes with a class attribute/method.
+
         def __getattr__(self, key: str):
+            if key in ("_config", "_name"):
+                raise AttributeError(key)
+
             setting = f"{self._name}.{key}"
             if setting in self._config._settings:
                 return self._config.settings[setting].__get__(self._config)
@@ -153,6 +216,20 @@ class Configuration:
 
             return Configuration._Proxy(self._config, setting)
 
+        def __setattr__(self, key: str, value: str) -> None:
+            if key in ("_config", "_name"):
+                return super().__setattr__(key, value)
+
+            setting = f"{self._name}.{key}"
+            if setting in self._config._settings:
+                return self._config.settings[setting].__set__(self._config, value)
+            elif (
+                not self._config._defined_only
+                and setting in self._config._settings_flex
+            ):
+                return self._config._settings_flex[setting].__set__(self._config, value)
+            raise AttributeError(setting)
+
     def __init__(
         self,
         config: Path | str | dict = None,
@@ -160,6 +237,7 @@ class Configuration:
         settings: Settings | Iterable[Setting] = None,
         defined_only: bool = False,
         access: SettingsAccess = SettingsAccess.ANY,
+        allow_changes: bool = True,
     ) -> None:
         """Returns a Configuration instance.
 
@@ -174,24 +252,54 @@ class Configuration:
         # Misc. config
         self._defined_only = defined_only
         self._access = access
-        self._read_only = True  # Only read-only supported at the moment
+        self._allow_changes = allow_changes
 
         # Assemble options from arg and class attributes.
         self._settings = Settings(settings)
+        for setting in self._settings:
+            self._check_setting_name(setting._name)
         self._settings_flex = Settings()
         for _, obj in getmembers(type(self)):
             if not isinstance(obj, Setting):
                 continue
             self._settings.append(obj)
 
+        # Misc helpers
+        self.__TYPE_MAP = None
+        self.__RESERVED = (
+            dir(self) if Configuration.SettingsAccess.ATTR in access else None
+        )
+
         # Load configuration
         self.load(config)
+
+    def _get_base_type(self, cls) -> type:
+        if _USE_TOMLKIT:
+            if not self.__TYPE_MAP:
+                self.__TYPE_MAP = {
+                    tomllib.items.Float: float,
+                    tomllib.items.Integer: int,
+                    tomllib.items.String: str,
+                    tomllib.items.DateTime: datetime,
+                    tomllib.items.Date: date,
+                    tomllib.items.Time: time,
+                    tomllib.items.Bool: bool,
+                    tomllib.items.Array: list,
+                    tomllib.items.AbstractTable: dict,
+                    tomllib.items.Table: dict,
+                }
+            if cls in self.__TYPE_MAP:
+                return self.__TYPE_MAP[cls]
+            raise TypeError(cls)
+        else:
+            return cls
 
     def reset(self) -> None:
         """Resets all settings to their default values."""
         for setting in self._settings:
             del setting
         self._settings_flex.clear()
+        self._data = {}
 
     def load(self, config: Path | str | dict = None) -> None:
         self.reset()
@@ -202,12 +310,18 @@ class Configuration:
         else:
             self._load_toml(config)
 
+    def save(self, path: Path | str) -> None:
+        if self.is_readonly:
+            raise OSError("Configuration is read-only")
+        with open(path, "w") as f:
+            f.write(tomllib.dumps(self._data))
+
     def _has_section(self, section: str) -> bool:
         s = section + "."
-        for setting in chain(self._settings, self._settings_flex):
-            if setting.name.startswith(s):
-                return True
-        return False
+        return any(
+            setting.name.startswith(s)
+            for setting in chain(self._settings, self._settings_flex)
+        )
 
     def _load_toml(self, config: Path | str) -> None:
         """Load configuration settings from a path pointing to a toml-file or
@@ -221,7 +335,7 @@ class Configuration:
 
     @staticmethod
     def _get_settings_from_dict(data: dict, section: str = None) -> dict:
-        r = dict()
+        r = {}
         for name, value in data.items():
             s = f"{section}.{name}" if section else name
             if isinstance(value, dict):
@@ -238,12 +352,26 @@ class Configuration:
             # Add settings to self._settings_flex for each item in self._data,
             # unless it is already defined in self._settings
             for setting, value in self._get_settings_from_dict(config).items():
-                if not setting in self._settings:
-                    self._settings_flex.append(Setting[type(value)](setting))
+                self._check_setting_name(setting)
+                if setting not in self._settings:
+                    self._settings_flex.append(
+                        Setting[self._get_base_type(type(value))](setting)
+                    )
+
+    @property
+    def is_readonly(self) -> bool:
+        return not _USE_TOMLKIT or not self._allow_changes
+
+    def _check_setting_name(self, name: str) -> None:
+        if Configuration.SettingsAccess.ATTR not in self._access:
+            return
+        for key in name.split("."):
+            if key in self.__RESERVED:
+                raise ValueError(f"'{key}' is a reserved keyword/attribute")
 
     @property
     def settings(self) -> dict[str, Any]:
-        r = dict()
+        r = {}
         for s in chain(self._settings, self._settings_flex):
             r[s.name] = s.__get__(self)
         return dict(sorted(r.items()))
@@ -252,7 +380,7 @@ class Configuration:
         try:
             return self.__get_value(self._data, keys, 0)
         except KeyError as e:
-            if not default is None:
+            if default is not None:
                 return default
             raise e
 
@@ -266,20 +394,65 @@ class Configuration:
             else data[keys[level]]
         )
 
+    def _set_value(self, keys: tuple[str], value: T) -> None:
+        Configuration.__set_value(self._data, keys, value)
+
+    @staticmethod
+    def __set_value(container, keys: tuple[str], value: T) -> None:
+        n = len(keys)
+        container.update()
+        if keys[0] not in container:
+            if n == 1:
+                container.add(keys[0], value)
+            else:
+                t = tomllib.table()
+                t.add(keys[-1], value)
+                container.add(".".join(keys[:-1]), t)
+                container.add(tomllib.nl())
+        else:
+            if n == 1:
+                container[keys[0]] = value
+            else:
+                Configuration.__set_value(container[keys[0]], keys[1:], value)
+
     def __getattr__(self, name: str) -> Any:
-        if not Configuration.SettingsAccess.ATTR in self._access:
-            raise AttributeError(name)
-        if name in self._settings:
-            return self._settings[name]
-        if not self._has_section(name):
+        if name in _FIXED_ATTR:
             raise AttributeError(name)
 
-        return Configuration._Proxy(self, name)
+        if Configuration.SettingsAccess.ATTR in self._access:
+            if name in self._settings:
+                return self._settings[name]
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name]
+            elif self._has_section(name):
+                return Configuration._Proxy(self, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _FIXED_ATTR:
+            return super().__setattr__(name, value)
+
+        if Configuration.SettingsAccess.ATTR in self._access:
+            if name in self._settings:
+                self._settings[name] = value
+                return
+            elif not self._defined_only and name in self._settings_flex:
+                self._settings_flex[name] = value
+                return
+        super().__setattr__(name, value)
 
     def __getitem__(self, name: str) -> Any:
-        if (
-            not Configuration.SettingsAccess.ITEM in self._access
-            or not name in self._settings
-        ):
-            raise KeyError(name)
-        return self._settings[name].__get__(self)
+        if Configuration.SettingsAccess.ITEM in self._access:
+            if name in self._settings:
+                return self._settings[name].__get__(self)
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name].__get__(self)
+        raise KeyError(name)
+
+    def __setitem__(self, name: str, value: Any) -> None:
+        if Configuration.SettingsAccess.ITEM in self._access:
+            if name in self._settings:
+                return self._settings[name].__set__(self, value)
+            elif not self._defined_only and name in self._settings_flex:
+                return self._settings_flex[name].__set__(self, value)
+        raise KeyError(name)

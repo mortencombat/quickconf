@@ -20,7 +20,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "attrs",
+    'attrs',
+    'tomli>=2.0;python_version<"3.11"',
 ]
 dynamic = ["version"]
 
@@ -33,5 +34,5 @@ test = [ 'pre-commit', 'pytest', 'pytest-cov' ]
 version = {file = [".version"]}
 
 [project.urls]
-homepage = "https://github.com/mortencombat/quickconf"
-repository = "https://github.com/mortencombat/quickconf"
+Homepage = "https://github.com/mortencombat/quickconf"
+Repository = "https://github.com/mortencombat/quickconf"

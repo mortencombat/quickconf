@@ -1,3 +1,16 @@
+[github_release]: https://img.shields.io/github/release/mortencombat/quickconf.svg?logo=github&logoColor=white
+[pypi_version]: https://img.shields.io/pypi/v/quickconf.svg?logo=python&logoColor=white
+[python_versions]: https://img.shields.io/pypi/pyversions/quickconf.svg?logo=python&logoColor=white
+[github_license]: https://img.shields.io/github/license/mortencombat/quickconf.svg?logo=github&logoColor=white
+[github_action]: https://github.com/mortencombat/quickconf/actions/workflows/tests.yml/badge.svg?branch=main
+
+[![GitHub Release][github_release]](https://github.com/mortencombat/quickconf/releases/)
+[![PyPI Version][pypi_version]](https://pypi.org/project/quickconf/)
+[![Python Versions][python_versions]](https://pypi.org/project/quickconf/)
+[![License][github_license]](https://github.com/mortencombat/quickconf/blob/main/LICENSE)
+<br>
+[![Tests][github_action]](https://github.com/mortencombat/quickconf/actions/workflows/tests.yml)
+
 # quickconf
 
 Simple and flexible TOML-file based configurations framework

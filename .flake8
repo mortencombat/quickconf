@@ -4,4 +4,4 @@ exclude =
     __pycache__,
     docs,
     dist
-ignore = Q000
+ignore = Q000, F401, E501, W503, E800
