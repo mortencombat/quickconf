@@ -31,9 +31,9 @@ jobs:
               version="${version/-/}"
               version="${version/alpha/a}"
               version="${version/beta/b}"
-              echo "prelease=true" >> $GITHUB_STATE
+              echo "prelease=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "version=$version" >> $GITHUB_STATE
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repo
         uses: actions/checkout@v3
