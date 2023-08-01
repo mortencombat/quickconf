@@ -77,7 +77,7 @@ jobs:
           draft: false
           allowUpdates: true
           generateReleaseNotes: true
-          replacesArtifacts: true
+          removeArtifacts: true
           prerelease: ${{ steps.check-version.outputs.prerelease }}
 
       - name: Publish to PyPI
