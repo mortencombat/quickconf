@@ -1,5 +1,6 @@
 import re
 from collections.abc import Iterable
+from datetime import date, datetime, time
 from enum import Flag, auto
 from inspect import getmembers
 from itertools import chain
@@ -9,9 +10,9 @@ from typing import Any, Generic, TypeVar
 try:
     import tomlkit as tomllib
 
-    _SUPPORT_WRITE = True
+    _USE_TOMLKIT = True
 except ModuleNotFoundError:
-    _SUPPORT_WRITE = False
+    _USE_TOMLKIT = False
     try:
         import tomllib
     except ModuleNotFoundError:
@@ -157,7 +158,14 @@ class Configuration:
             self._config = config
             self._name = name
 
+        # NOTE! There could be name clashes with the current implementation, both in Configuration and in _Proxy,
+        #       if a settings key has the same name as a class attribute
+        #       Raise an error if ATTR access is enabled and a setting is defined or loaded that clashes with a class attribute/method.
+
         def __getattr__(self, key: str):
+            if key in ("_config", "_name"):
+                raise AttributeError(key)
+
             setting = f"{self._name}.{key}"
             if setting in self._config._settings:
                 return self._config.settings[setting].__get__(self._config)
@@ -171,16 +179,19 @@ class Configuration:
 
             return Configuration._Proxy(self._config, setting)
 
-        # def __setattr__(self, key: str, value: str):
-        #     setting = f"{self._name}.{key}"
-        #     if setting in self._config._settings:
-        #         return self._config.settings[setting].__set__(self._config, value)
-        #     elif (
-        #         not self._config._defined_only
-        #         and setting in self._config._settings_flex
-        #     ):
-        #         return self._config._settings_flex[setting].__set__(self._config, value)
-        #     raise AttributeError(setting)
+        def __setattr__(self, key: str, value: str) -> None:
+            if key in ("_config", "_name"):
+                return super().__setattr__(key, value)
+
+            setting = f"{self._name}.{key}"
+            if setting in self._config._settings:
+                return self._config.settings[setting].__set__(self._config, value)
+            elif (
+                not self._config._defined_only
+                and setting in self._config._settings_flex
+            ):
+                return self._config._settings_flex[setting].__set__(self._config, value)
+            raise AttributeError(setting)
 
     def __init__(
         self,
@@ -213,9 +224,28 @@ class Configuration:
             if not isinstance(obj, Setting):
                 continue
             self._settings.append(obj)
+        self.__TYPE_MAP = None
 
         # Load configuration
         self.load(config)
+
+    def __get_base_type(self, cls) -> type:
+        if _USE_TOMLKIT:
+            if not self.__TYPE_MAP:
+                self.__TYPE_MAP = {
+                    tomllib.items.Float: float,
+                    tomllib.items.Integer: int,
+                    tomllib.items.String: str,
+                    tomllib.items.DateTime: datetime,
+                    tomllib.items.Date: date,
+                    tomllib.items.Time: time,
+                    tomllib.items.Bool: bool,
+                }
+            if cls in self.__TYPE_MAP:
+                return self.__TYPE_MAP[cls]
+            raise TypeError(cls)
+        else:
+            return cls
 
     def reset(self) -> None:
         """Resets all settings to their default values."""
@@ -276,11 +306,13 @@ class Configuration:
             # unless it is already defined in self._settings
             for setting, value in self._get_settings_from_dict(config).items():
                 if setting not in self._settings:
-                    self._settings_flex.append(Setting[type(value)](setting))
+                    self._settings_flex.append(
+                        Setting[self.__get_base_type(type(value))](setting)
+                    )
 
     @property
     def is_readonly(self) -> bool:
-        return not _SUPPORT_WRITE or not self._allow_changes
+        return not _USE_TOMLKIT or not self._allow_changes
 
     @property
     def settings(self) -> dict[str, Any]:
@@ -311,9 +343,7 @@ class Configuration:
         Configuration.__set_value(self._data, keys, value)
 
     @staticmethod
-    def __set_value(
-        container: tomllib.container.Container, keys: tuple[str], value: T
-    ) -> None:
+    def __set_value(container, keys: tuple[str], value: T) -> None:
         n = len(keys)
         container.update()
         if keys[0] not in container:
@@ -331,7 +361,16 @@ class Configuration:
                 Configuration.__set_value(container[keys[0]], keys[1:], value)
 
     def __getattr__(self, name: str) -> Any:
-        print("__getattr__", name)
+        if name in (
+            "_defined_only",
+            "_access",
+            "_allow_changes",
+            "_settings",
+            "_settings_flex",
+            "_data",
+        ):
+            raise AttributeError(name)
+
         if Configuration.SettingsAccess.ATTR in self._access:
             if name in self._settings:
                 return self._settings[name]
@@ -341,13 +380,25 @@ class Configuration:
                 return Configuration._Proxy(self, name)
         raise AttributeError(name)
 
-    # def __setattr__(self, name: str, value: Any) -> None:
-    #     if Configuration.SettingsAccess.ATTR in self._access:
-    #         if name in self._settings:
-    #             self._settings[name] = value
-    #         elif not self._defined_only and name in self._settings_flex:
-    #             self._settings_flex[name] = value
-    #     return super().__setattr__(name, value)
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in (
+            "_defined_only",
+            "_access",
+            "_allow_changes",
+            "_settings",
+            "_settings_flex",
+            "_data",
+        ):
+            return super().__setattr__(name, value)
+
+        if Configuration.SettingsAccess.ATTR in self._access:
+            if name in self._settings:
+                self._settings[name] = value
+                return
+            elif not self._defined_only and name in self._settings_flex:
+                self._settings_flex[name] = value
+                return
+        super().__setattr__(name, value)
 
     def __getitem__(self, name: str) -> Any:
         if Configuration.SettingsAccess.ITEM in self._access:

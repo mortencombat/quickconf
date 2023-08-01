@@ -38,9 +38,9 @@ config = ExampleConfig(
     data, defined_only=True, access=Configuration.SettingsAccess.ATTR_EXPLICIT
 )
 print(f"{config.layout_point_size=}")
+config.layout_point_size = 0.2
 for setting, value in config.settings.items():
     print(f"{setting} = {value}")
-config.layout_point_size = 0.2
 config.save(data_out)
 
 # Settings are inferred from the configuration file, eg. all settings from the file are read.
@@ -48,9 +48,9 @@ config.save(data_out)
 print("\nEXAMPLE 2: Configuration with all settings in .toml file and attribute access")
 config = Configuration(data, access=Configuration.SettingsAccess.ATTR)
 print(f"{config.layout.point.size=}")
+config.layout.point.size = 0.3
 for setting, value in config.settings.items():
     print(f"{setting} = {value}")
-config.layout.point.size = 0.3
 config.save(data_out)
 
 # Settings are defined in options. Any settings in data that are not explicitly defined are
@@ -60,5 +60,7 @@ config = Configuration(
     data, settings=settings, defined_only=True, access=Configuration.SettingsAccess.ITEM
 )
 print(f"{config['layout.point.size']=}")
+config["layout.point.size"] = 0.4
 for setting, value in config.settings.items():
     print(f"{setting} = {value}")
+config.save(data_out)
