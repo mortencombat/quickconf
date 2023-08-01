@@ -28,12 +28,15 @@ jobs:
           version="${BASH_REMATCH[1]}"
           if [ ! -z "${BASH_REMATCH[2]}" ]
           then
-              version="${version/-/}"
-              version="${version/alpha/a}"
-              version="${version/beta/b}"
-              echo ::set-output name=prerelease::true
+            version="${version/-/}"
+            version="${version/alpha/a}"
+            version="${version/beta/b}"
+            pre="true"
+          else
+            pre="false"
           fi
-          echo ::set-output name=version::$version
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -70,10 +73,12 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "dist/*"
+          name: ${{ steps.check-version.outputs.version }}
           draft: false
           allowUpdates: true
           generateReleaseNotes: true
-          prerelease: steps.check-version.outputs.prerelease == 'true'
+          removeArtifacts: true
+          prerelease: ${{ steps.check-version.outputs.prerelease }}
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
