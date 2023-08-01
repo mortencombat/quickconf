@@ -25,8 +25,15 @@ jobs:
         run: |
           pattern="^refs\/tags\/v([0-9]+\.[0-9]+\.[0-9]+(-(a|alpha|b|beta|dev)[0-9]+)?)$"
           [[ "${{ github.ref }}" =~ $pattern ]]
-          echo ::set-output name=version::${BASH_REMATCH[1]}
-          [ -z "${BASH_REMATCH[2]}" ] || echo ::set-output name=prerelease::true
+          version="${BASH_REMATCH[1]}"
+          if [ ! -z "${BASH_REMATCH[2]}" ]
+          then
+              version="${version/-/}"
+              version="${version/alpha/a}"
+              version="${version/beta/b}"
+              echo ::set-output name=prerelease::true
+          fi
+          echo ::set-output name=version::$version
 
       - name: Checkout repo
         uses: actions/checkout@v3
