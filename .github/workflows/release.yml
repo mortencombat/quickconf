@@ -28,11 +28,14 @@ jobs:
           version="${BASH_REMATCH[1]}"
           if [ ! -z "${BASH_REMATCH[2]}" ]
           then
-              version="${version/-/}"
-              version="${version/alpha/a}"
-              version="${version/beta/b}"
-              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            version="${version/-/}"
+            version="${version/alpha/a}"
+            version="${version/beta/b}"
+            pre="true"
+          else
+            pre="false"
           fi
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repo
@@ -75,7 +78,7 @@ jobs:
           allowUpdates: true
           generateReleaseNotes: true
           replacesArtifacts: true
-          prerelease: ${{ steps.check-version.outputs.prerelease }} == 'true'
+          prerelease: ${{ steps.check-version.outputs.prerelease }}
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
