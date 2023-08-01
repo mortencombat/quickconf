@@ -22,6 +22,39 @@ T = TypeVar("T")
 
 _key_pattern = re.compile("[A-Za-z0-9_-]+")
 
+_FIXED_ATTR = (
+    "_defined_only",
+    "_access",
+    "_allow_changes",
+    "_settings",
+    "_settings_flex",
+    "_data",
+)
+
+# RESERVED_CONFIG = (
+#     "__defined_only",
+#     "__access",
+#     "__allow_changes",
+#     "__settings",
+#     "__settings_flex",
+#     "__data",
+#     "__TYPE_MAP",
+#     "load",
+#     "reset",
+#     "save",
+#     "__has_section",
+#     "__load_toml",
+#     "__load_dict",
+#     "__get_settings_from_dict",
+#     "",
+#     "",
+#     "",
+# )
+# RESERVED_PROXY = (
+#     "__name",
+#     "__config",
+# )
+
 
 def parse_key(key: str) -> tuple[str]:
     keys = key.split(".")
@@ -37,7 +70,13 @@ class Setting(Generic[T]):
     # NOTE: This is a 'descriptor class', similar to using property()
     # https://docs.python.org/3/reference/datamodel.html?highlight=__get__#implementing-descriptors
 
-    def __init__(self, name: str, *, default: T = None, doc: str = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        default: T = None,
+        doc: str = None,
+    ) -> None:
         super().__init__()
 
         self._name = name.replace(" ", "")
@@ -47,9 +86,7 @@ class Setting(Generic[T]):
         self.__doc__ = doc
         self._reset()
 
-    # TODO: implement name validator, does tomllib have a method we can use?
-
-    # Add support for validators, and a couple of stock validators
+    # TODO: Add support for validators, and a couple of stock validators
 
     @property
     def name(self) -> str:
@@ -219,17 +256,24 @@ class Configuration:
 
         # Assemble options from arg and class attributes.
         self._settings = Settings(settings)
+        for setting in self._settings:
+            self._check_setting_name(setting._name)
         self._settings_flex = Settings()
         for _, obj in getmembers(type(self)):
             if not isinstance(obj, Setting):
                 continue
             self._settings.append(obj)
+
+        # Misc helpers
         self.__TYPE_MAP = None
+        self.__RESERVED = (
+            dir(self) if Configuration.SettingsAccess.ATTR in access else None
+        )
 
         # Load configuration
         self.load(config)
 
-    def __get_base_type(self, cls) -> type:
+    def _get_base_type(self, cls) -> type:
         if _USE_TOMLKIT:
             if not self.__TYPE_MAP:
                 self.__TYPE_MAP = {
@@ -240,6 +284,9 @@ class Configuration:
                     tomllib.items.Date: date,
                     tomllib.items.Time: time,
                     tomllib.items.Bool: bool,
+                    tomllib.items.Array: list,
+                    tomllib.items.AbstractTable: dict,
+                    tomllib.items.Table: dict,
                 }
             if cls in self.__TYPE_MAP:
                 return self.__TYPE_MAP[cls]
@@ -305,14 +352,22 @@ class Configuration:
             # Add settings to self._settings_flex for each item in self._data,
             # unless it is already defined in self._settings
             for setting, value in self._get_settings_from_dict(config).items():
+                self._check_setting_name(setting)
                 if setting not in self._settings:
                     self._settings_flex.append(
-                        Setting[self.__get_base_type(type(value))](setting)
+                        Setting[self._get_base_type(type(value))](setting)
                     )
 
     @property
     def is_readonly(self) -> bool:
         return not _USE_TOMLKIT or not self._allow_changes
+
+    def _check_setting_name(self, name: str) -> None:
+        if Configuration.SettingsAccess.ATTR not in self._access:
+            return
+        for key in name.split("."):
+            if key in self.__RESERVED:
+                raise ValueError(f"'{key}' is a reserved keyword/attribute")
 
     @property
     def settings(self) -> dict[str, Any]:
@@ -361,14 +416,7 @@ class Configuration:
                 Configuration.__set_value(container[keys[0]], keys[1:], value)
 
     def __getattr__(self, name: str) -> Any:
-        if name in (
-            "_defined_only",
-            "_access",
-            "_allow_changes",
-            "_settings",
-            "_settings_flex",
-            "_data",
-        ):
+        if name in _FIXED_ATTR:
             raise AttributeError(name)
 
         if Configuration.SettingsAccess.ATTR in self._access:
@@ -381,14 +429,7 @@ class Configuration:
         raise AttributeError(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in (
-            "_defined_only",
-            "_access",
-            "_allow_changes",
-            "_settings",
-            "_settings_flex",
-            "_data",
-        ):
+        if name in _FIXED_ATTR:
             return super().__setattr__(name, value)
 
         if Configuration.SettingsAccess.ATTR in self._access:
