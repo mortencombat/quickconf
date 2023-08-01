@@ -9,12 +9,15 @@ permissions:
   contents: read
 
 jobs:
+  # TODO: check and require that tests have completed without issue before releasing?
+
   release:
     name: Release
     runs-on: ubuntu-latest
     environment: release
     permissions:
       id-token: write
+      contents: write
 
     steps:
       - name: Check version
