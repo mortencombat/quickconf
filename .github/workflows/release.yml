@@ -70,12 +70,12 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "dist/*"
-          name: steps.check-version.outputs.version
+          name: ${{ steps.check-version.outputs.version }}
           draft: false
           allowUpdates: true
           generateReleaseNotes: true
           replacesArtifacts: true
-          prerelease: steps.check-version.outputs.prerelease == 'true'
+          prerelease: ${{ steps.check-version.outputs.prerelease }} == 'true'
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
