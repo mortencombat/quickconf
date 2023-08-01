@@ -31,7 +31,7 @@ jobs:
               version="${version/-/}"
               version="${version/alpha/a}"
               version="${version/beta/b}"
-              echo "prelease=true" >> "$GITHUB_OUTPUT"
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -70,6 +70,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "dist/*"
+          name: steps.check-version.outputs.version
           draft: false
           allowUpdates: true
           generateReleaseNotes: true
