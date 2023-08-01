@@ -34,5 +34,5 @@ test = [ 'pre-commit', 'pytest', 'pytest-cov' ]
 version = {file = [".version"]}
 
 [project.urls]
-homepage = "https://github.com/mortencombat/quickconf"
-repository = "https://github.com/mortencombat/quickconf"
+Homepage = "https://github.com/mortencombat/quickconf"
+Repository = "https://github.com/mortencombat/quickconf"
